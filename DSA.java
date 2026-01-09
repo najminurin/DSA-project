@@ -227,7 +227,41 @@ public class DSA {
 
         /**
          * Record a sale made by a seller: credit seller's own commission based on their commissionRate,
-         * add to ownSales and distribute uplines using provided percentages.
+         * add to ownSales and distribute uplines automatically based on seller depth (no user input required).
+         */
+        public void recordSale(String sellerId, double amount) {
+            Member seller = find(sellerId);
+            if (seller == null) throw new IllegalArgumentException("Seller not found: " + sellerId);
+            if (seller.getStatus() != Member.Status.ACTIVE) {
+                System.out.println("Cannot record sale: seller is not active.");
+                return;
+            }
+
+            // seller keeps own commission based on their rate
+            double selfCommission = amount * seller.getCommissionRate();
+            seller.addOwnSales(amount);
+            seller.credit(selfCommission);
+            System.out.printf("Seller %s receives own commission %.2f (%.2f%%)\n", seller.getName(), selfCommission, seller.getCommissionRate()*100);
+
+            // distribute remainder to uplines automatically
+            List<Member> ups = seller.getUplines();
+            if (ups.isEmpty()) return;
+            double distributionSum = amount * (1.0 - seller.getCommissionRate());
+            // percentages are generated root-first and sum to 1.0
+            List<Double> percs = generateUplinePercentages(ups.size());
+            // get uplines ordered from root (farthest) to immediate sponsor (closest)
+            List<Member> upsReversed = new ArrayList<>(ups);
+            Collections.reverse(upsReversed);
+            for (int i = 0; i < percs.size() && i < upsReversed.size(); i++) {
+                double pct = percs.get(i);
+                double commission = distributionSum * pct;
+                upsReversed.get(i).credit(commission);
+                System.out.printf("Upline level %d (%s) receives %.2f (%.2f%%)\n", i+1, upsReversed.get(i).getName(), commission, pct*100);
+            }
+        }
+
+        /**
+         * Existing variant: allow explicit percentages (kept for compatibility).
          */
         public void recordSale(String sellerId, double amount, List<Double> uplinePercentages) {
             Member seller = find(sellerId);
@@ -243,8 +277,45 @@ public class DSA {
             seller.credit(selfCommission);
             System.out.printf("Seller %s receives own commission %.2f (%.2f%%)\n", seller.getName(), selfCommission, seller.getCommissionRate()*100);
 
-            // distribute to uplines
-            distributeCommission(sellerId, amount, uplinePercentages);
+            // distribute to uplines using provided percentages; percentages are fractions of the distribution pool
+            double distributionSum = amount * (1.0 - seller.getCommissionRate());
+            double sum = 0.0;
+            for (double p : uplinePercentages) sum += p;
+            if (sum <= 0.0) return;
+            // normalize provided percentages so they sum to 1 and apply to distributionSum
+            for (int i = 0; i < uplinePercentages.size(); i++) {
+                double p = uplinePercentages.get(i) / sum;
+                // map from level 1=immediate sponsor upward -> we want root-first ordering, so reverse index
+                Member up = null;
+                List<Member> ups = seller.getUplines();
+                List<Member> upsReversed = new ArrayList<>(ups);
+                Collections.reverse(upsReversed);
+                if (i < upsReversed.size()) {
+                    up = upsReversed.get(i);
+                    double commission = distributionSum * p;
+                    up.credit(commission);
+                    System.out.printf("Upline %s receives %.2f (%.2f%% of distribution)\n", up.getName(), commission, p*100);
+                }
+            }
+        }
+
+        /**
+         * Generate upline distribution percentages based on number of uplines.
+         * Uses a square-root weighting (less steep) so the root receives the largest share and
+         * shares decrease for lower uplines. Returned list is root-first and sums to 1.0.
+         */
+        private List<Double> generateUplinePercentages(int k) {
+            List<Double> out = new ArrayList<>();
+            if (k <= 0) return out;
+            double p = 0.5; // exponent controls steepness; 0.5 => sqrt weights
+            double sum = 0.0;
+            for (int i = 0; i < k; i++) {
+                double weight = Math.pow((double)(k - i), p);
+                out.add(weight);
+                sum += weight;
+            }
+            for (int i = 0; i < k; i++) out.set(i, out.get(i) / sum);
+            return out;
         }
 
         /**
@@ -528,6 +599,23 @@ public class DSA {
         if (Math.abs(bob - 20.0) > 1e-6) { System.out.println("Test failed: Bob expected 20, got "+bob); ok=false; }
         if (Math.abs(alice - 10.0) > 1e-6) { System.out.println("Test failed: Alice expected 10, got "+alice); ok=false; }
 
+        // New distribution behavior: seller keeps commissionRate and the remainder is auto-distributed
+        t = new MLMTree();
+        t.addMember("C","Company",null);
+        t.addMember("A","Alice","C");
+        t.addMember("B","Bob","A");
+        t.addMember("E","Eve","B");
+        t.find("E").setCommissionRate(0.5); // Eve keeps 50% of sale
+        t.recordSale("E", 10000.0); // Eve sells 10k -> Eve should get 5k, remainder 5k distributed
+        double eveBal = t.find("E").getBalance();
+        double bBal = t.find("B").getBalance();
+        double aBal = t.find("A").getBalance();
+        double cBal = t.find("C").getBalance();
+        if (Math.abs(eveBal - 5000.0) > 1e-6) { System.out.println("Test failed: Eve expected 5000, got " + eveBal); ok = false; }
+        double distSum = bBal + aBal + cBal;
+        if (Math.abs(distSum - 5000.0) > 1e-6) { System.out.println("Test failed: distribution sum expected 5000, got " + distSum); ok = false; }
+        if (!(cBal > aBal && aBal > bBal)) { System.out.println("Test failed: expected decreasing distribution from root to parent (C > A > B); got C="+cBal+" A="+aBal+" B="+bBal); ok = false; }
+
         if (ok) System.out.println("All tests passed.");
     }
 
@@ -618,12 +706,15 @@ public class DSA {
         }
 
         String sponsorId;
+        boolean rootExists = !tree.getTopLevelMembers().isEmpty();
         while (true) {
-            System.out.print("Parent ID (leave empty for root): ");
+            if (rootExists) System.out.print("Parent ID (required — a root already exists): ");
+            else System.out.print("Parent ID (leave empty for root): ");
             sponsorId = sc.nextLine().trim();
-            if (sponsorId.isEmpty()) { sponsorId = null; break; }
-            if (tree.find(sponsorId) == null) System.out.println("Parent not found. Try again or leave empty.");
-            else break;
+            if (!rootExists && sponsorId.isEmpty()) { sponsorId = null; break; }
+            if (sponsorId.isEmpty()) { System.out.println("A root already exists; please enter a valid Parent ID."); continue; }
+            if (tree.find(sponsorId) == null) { System.out.println("Parent not found. Try again."); continue; }
+            break;
         }
 
         double commissionRate = 0.0;
@@ -688,17 +779,8 @@ public class DSA {
         try { amt = Double.parseDouble(amtS); if (amt <= 0) { System.out.println("Amount must be positive."); return; } }
         catch (NumberFormatException ex) { System.out.println("Invalid number."); return; }
 
-        System.out.println("Enter upline percentages per level as comma-separated percents (e.g. 10,5,2) or leave empty for default 10,5,2:");
-        String perS = sc.nextLine().trim();
-        List<Double> percs = new ArrayList<>();
-        if (perS.isEmpty()) percs = Arrays.asList(0.10, 0.05, 0.02);
-        else {
-            String[] parts = perS.split(",");
-            for (String p : parts) {
-                try { double v = Double.parseDouble(p.trim())/100.0; percs.add(v); } catch (NumberFormatException ex) { System.out.println("Invalid percent: " + p); return; }
-            }
-        }
-        tree.recordSale(sellerId, amt, percs);
+        // Distribution percentages are auto-generated based on the seller's depth; no user input required
+        tree.recordSale(sellerId, amt);
 
         // Ask whether user wants to continue making children/parent creations for seller
         while (true) {

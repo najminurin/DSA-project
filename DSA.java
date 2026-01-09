@@ -535,6 +535,9 @@ public class DSA {
         }
     }
 
+    // Tracks whether in-memory data is saved to disk (true = no unsaved changes)
+    private static boolean isSaved = true;
+
     public static void main(String[] args) {
         final String DATA_FILE = "mlm_data.tsv";
         MLMTree tree = new MLMTree();
@@ -624,16 +627,14 @@ public class DSA {
         boolean running = true;
         while (running) {
             System.out.println("\nChoose an option:");
-            System.out.println("1) Add Member");
-            System.out.println("2) Make Sale");
-            System.out.println("3) Show Member Details");
-            System.out.println("4) Print Tree");
-            System.out.println("5) List Members by Sales Volume");
-            System.out.println("6) Add Parent to Member");
-            System.out.println("7) Update Member (phone/commission/status)");
-            System.out.println("8) Save to file");
-            System.out.println("9) Load from file");
-            System.out.println("10) Exit");
+            System.out.println("1) Add Member (includes recording sale)");
+            System.out.println("2) Show Member Details");
+            System.out.println("3) Print Tree");
+            System.out.println("4) List Members by Sales Volume");
+            System.out.println("5) Update Member (phone/commission/status)");
+            System.out.println("6) Save to file");
+            System.out.println("7) Load from file");
+            System.out.println("8) Exit");
             System.out.print("> ");
             String choice = sc.nextLine().trim();
             switch (choice) {
@@ -641,13 +642,9 @@ public class DSA {
                     addMemberInteractive(tree, sc);
                     break;
                 case "2":
-                    makeSaleInteractive(tree, sc);
-                    break;
-                case "3":
                     showMemberInteractive(tree, sc);
                     break;
-                case "4":
-                    // Print a visual ASCII tree and then a brief list of each member
+                case "3":
                     tree.printTreeVisual();
                     System.out.println();
                     System.out.println("Brief details:");
@@ -656,36 +653,57 @@ public class DSA {
                             m.getName(), m.getId(), m.parentName(), m.getDirectDownlines().size(), m.getLevel(), m.getSalesVolume(), m.getBalance());
                     }
                     break;
-                case "5":
+                case "4":
                     List<Member> sorted = tree.getMembersSortedBySales();
                     System.out.println("Members sorted by sales volume:");
                     for (Member m : sorted) System.out.printf("%s - Sales: %.2f\n", m.getName(), m.getSalesVolume());
                     break;
-                case "6":
-                    System.out.print("Member ID to add parent for: ");
-                    String childId = sc.nextLine().trim();
-                    if (tree.find(childId) == null) { System.out.println("Member not found."); break; }
-                    addParentInteractive(tree, sc, childId);
-                    break;
-                case "7":
+                case "5":
                     System.out.print("Member ID to update: ");
                     String updateId = sc.nextLine().trim();
                     if (tree.find(updateId) == null) { System.out.println("Member not found."); break; }
                     updateMemberInteractive(tree, sc, updateId);
                     break;
-                case "8":
+                case "6":
                     System.out.print("Filename to save to (leave empty for 'mlm_data.tsv'): ");
                     String saveFile = sc.nextLine().trim();
                     if (saveFile.isEmpty()) saveFile = "mlm_data.tsv";
-                    try { tree.saveToFile(saveFile); System.out.println("Saved to " + saveFile); } catch (Exception ex) { System.out.println("Save failed: " + ex.getMessage()); }
+                    try { tree.saveToFile(saveFile); System.out.println("Saved to " + saveFile); isSaved = true; } catch (Exception ex) { System.out.println("Save failed: " + ex.getMessage()); }
                     break;
-                case "9":
+                case "7":
+                    // If there are unsaved changes, require explicit save or confirm discard
+                    boolean proceedToLoad = true;
+                    if (!isSaved) {
+                        proceedToLoad = false;
+                        while (true) {
+                            System.out.print("Current data has unsaved changes. Save before loading? (y = save, n = discard and load, c = cancel): ");
+                            String ans = sc.nextLine().trim().toLowerCase();
+                            if (ans.equals("y") || ans.equals("yes")) {
+                                System.out.print("Filename to save to (leave empty for 'mlm_data.tsv'): ");
+                                String saveFile2 = sc.nextLine().trim();
+                                if (saveFile2.isEmpty()) saveFile2 = "mlm_data.tsv";
+                                try { tree.saveToFile(saveFile2); System.out.println("Saved to " + saveFile2); isSaved = true; proceedToLoad = true; } catch (Exception ex) { System.out.println("Save failed: " + ex.getMessage()); proceedToLoad = false; }
+                                break; // proceed according to proceedToLoad
+                            } else if (ans.equals("n") || ans.equals("no")) {
+                                System.out.println("Proceeding to load; current unsaved changes will be lost.");
+                                proceedToLoad = true;
+                                break; // proceed to load
+                            } else if (ans.equals("c") || ans.equals("cancel")) {
+                                System.out.println("Load cancelled.");
+                                proceedToLoad = false;
+                                break;
+                            } else {
+                                System.out.println("Please enter y, n, or c.");
+                            }
+                        }
+                    }
+                    if (!proceedToLoad) break;
                     System.out.print("Filename to load (leave empty for 'mlm_data.tsv'): ");
                     String loadFile = sc.nextLine().trim();
                     if (loadFile.isEmpty()) loadFile = "mlm_data.tsv";
-                    try { boolean ok = tree.loadFromFile(loadFile); if (ok) System.out.println("Loaded " + loadFile); else System.out.println("Load failed or file not found."); } catch (Exception ex) { System.out.println("Load failed: " + ex.getMessage()); }
+                    try { boolean ok = tree.loadFromFile(loadFile); if (ok) { System.out.println("Loaded " + loadFile); isSaved = true; } else System.out.println("Load failed or file not found."); } catch (Exception ex) { System.out.println("Load failed: " + ex.getMessage()); }
                     break;
-                case "10":
+                case "8":
                     running = false;
                     break;
                 default:
@@ -742,7 +760,34 @@ public class DSA {
         m.setCommissionRate(commissionRate);
         m.setPhone(phone);
 
+        // mark as unsaved
+        isSaved = false;
+
         System.out.println("Member added:\n" + m.detailsString());
+
+        // Ask whether to record a sale for this member
+        while (true) {
+            System.out.print("\nRecord a sale for this member? (y/n): ");
+            String recordSale = sc.nextLine().trim().toLowerCase();
+            if (recordSale.equals("y") || recordSale.equals("yes")) {
+                System.out.print("Sale amount: ");
+                String amtS = sc.nextLine().trim();
+                double amt;
+                try {
+                    amt = Double.parseDouble(amtS);
+                    if (amt <= 0) { System.out.println("Amount must be positive."); continue; }
+                    tree.recordSale(m.getId(), amt);
+                    // mark unsaved because sale modified balances
+                    isSaved = false;
+                    System.out.println("Sale recorded successfully.");
+                    break;
+                } catch (NumberFormatException ex) { System.out.println("Invalid number."); }
+            } else if (recordSale.equals("n") || recordSale.equals("no") || recordSale.isEmpty()) {
+                break;
+            } else {
+                System.out.println("Please enter 'y' or 'n'.");
+            }
+        }
 
         // Return to main menu
     }
@@ -781,6 +826,7 @@ public class DSA {
 
         // Distribution percentages are auto-generated based on the seller's depth; no user input required
         tree.recordSale(sellerId, amt);
+        isSaved = false;
 
         // Ask whether user wants to continue making children/parent creations for seller
         while (true) {
@@ -809,6 +855,8 @@ public class DSA {
         if (name.isEmpty()) { System.out.println("Name cannot be empty."); return; }
         try {
             Member parent = tree.addParentAbove(childId, name);
+            // mark unsaved
+            isSaved = false;
             System.out.println("Parent created and child reparented:\n" + parent.detailsString());
         } catch (IllegalArgumentException ex) {
             System.out.println("Failed to add parent: " + ex.getMessage());
@@ -826,6 +874,7 @@ public class DSA {
         Member m = tree.find(memberId);
         if (m == null) { System.out.println("Member not found."); return; }
         System.out.println("Updating member: " + m.getName());
+        boolean changed = false;
         while (true) {
             System.out.println("Choose field to update: phone / commission / status / done");
             System.out.print("> ");
@@ -834,19 +883,20 @@ public class DSA {
                 System.out.print("New phone: ");
                 String phone = sc.nextLine().trim();
                 if (!phone.matches("[0-9()+\\- ]{6,20}")) { System.out.println("Invalid phone format."); }
-                else { m.setPhone(phone); System.out.println("Phone updated."); }
+                else { m.setPhone(phone); changed = true; System.out.println("Phone updated."); }
             } else if (f.equals("commission")) {
                 System.out.print("Commission percent (e.g. 10): ");
                 String s = sc.nextLine().trim();
-                try { double pct = Double.parseDouble(s); if (pct < 0 || pct > 100) { System.out.println("Enter 0-100."); } else { m.setCommissionRate(pct/100.0); System.out.println("Commission updated."); } }
+                try { double pct = Double.parseDouble(s); if (pct < 0 || pct > 100) { System.out.println("Enter 0-100."); } else { m.setCommissionRate(pct/100.0); changed = true; System.out.println("Commission updated."); } }
                 catch (NumberFormatException ex) { System.out.println("Invalid number."); }
             } else if (f.equals("status")) {
                 System.out.print("Status (ACTIVE/INACTIVE/TERMINATED): ");
                 String st = sc.nextLine().trim().toUpperCase();
-                try { m.setStatus(Member.Status.valueOf(st)); System.out.println("Status updated."); } catch (IllegalArgumentException ex) { System.out.println("Invalid status."); }
+                try { m.setStatus(Member.Status.valueOf(st)); changed = true; System.out.println("Status updated."); } catch (IllegalArgumentException ex) { System.out.println("Invalid status."); }
             } else if (f.equals("done")) { break; }
             else System.out.println("Unknown field.");
         }
+        if (changed) isSaved = false;
         System.out.println("Updated member:\n" + m.detailsString());
     }
 }

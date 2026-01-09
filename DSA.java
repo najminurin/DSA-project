@@ -359,6 +359,44 @@ public class DSA {
         }
 
         /**
+         * Insert a new parent above an existing member. Returns the created parent.
+         * Handles the case where the child is a root (no sponsor) without creating cycles.
+         */
+        public Member addParentAbove(String childId, String parentName) {
+            Member child = members.get(childId);
+            if (child == null) throw new IllegalArgumentException("Child not found: " + childId);
+            Member oldSponsor = child.getSponsor();
+
+            // Generate an id similar to addMember logic
+            String id;
+            if (oldSponsor != null) {
+                id = oldSponsor.getId() + "-" + (oldSponsor.getDirectDownlines().size() + 1);
+            } else {
+                id = "M" + (members.size() + 1);
+            }
+            if (members.containsKey(id)) {
+                int suffix = 1;
+                String base = id;
+                while (members.containsKey(id)) id = base + "-" + suffix++;
+            }
+
+            Member parent = new Member(id, parentName);
+            members.put(id, parent);
+
+            if (oldSponsor == null) {
+                // child was top-level; make parent the new top-level and attach child under it
+                parent.addDownline(child);
+                if (root == child) root = parent;
+            } else {
+                // insert parent between oldSponsor and child
+                oldSponsor.removeDownline(child);
+                oldSponsor.addDownline(parent);
+                parent.addDownline(child);
+            }
+            return parent;
+        }
+
+        /**
          * Save members to a TSV file. Simple, robust format with header.
          */
         public void saveToFile(String filename) throws java.io.IOException {
@@ -570,22 +608,13 @@ public class DSA {
     }
 
     private static void addMemberInteractive(MLMTree tree, Scanner sc) {
-        System.out.println("Follow the template. Leave ID empty to auto-generate.");
+        System.out.println("Follow the template. IDs are auto-generated.");
         String name;
         while (true) {
             System.out.print("Name: ");
             name = sc.nextLine().trim();
             if (!name.isEmpty()) break;
             System.out.println("Name cannot be empty.");
-        }
-
-        String id;
-        while (true) {
-            System.out.print("ID (optional): ");
-            id = sc.nextLine().trim();
-            if (id.isEmpty()) { id = null; break; }
-            if (tree.find(id) != null) { System.out.println("ID already exists. Choose another or leave empty."); }
-            else break;
         }
 
         String sponsorId;
@@ -618,29 +647,13 @@ public class DSA {
             else break;
         }
 
-        Member m = tree.addMember(id, name, sponsorId);
+        Member m = tree.addMember(null, name, sponsorId);
         m.setCommissionRate(commissionRate);
         m.setPhone(phone);
 
         System.out.println("Member added:\n" + m.detailsString());
 
-        // Ask whether to add a child now
-        while (true) {
-            System.out.print("Add a child to this member? (y/n): ");
-            String a = sc.nextLine().trim().toLowerCase();
-            if (a.equals("y") || a.equals("yes")) { addMemberInteractiveChild(tree, sc, m.getId()); break; }
-            else if (a.equals("n") || a.equals("no")) break;
-            else System.out.println("Please enter 'y' or 'n'.");
-        }
-
-        // Ask whether to add a parent now (create new parent and attach this member under it)
-        while (true) {
-            System.out.print("Add a parent to this member? (y/n): ");
-            String a = sc.nextLine().trim().toLowerCase();
-            if (a.equals("y") || a.equals("yes")) { addParentInteractive(tree, sc, m.getId()); break; }
-            else if (a.equals("n") || a.equals("no") || a.isEmpty()) break;
-            else System.out.println("Please enter 'y' or 'n'.");
-        }
+        // Return to main menu
     }
 
     private static void addMemberInteractiveChild(MLMTree tree, Scanner sc, String parentId) {
@@ -704,17 +717,7 @@ public class DSA {
         Member m = tree.find(id);
         if (m == null) { System.out.println("Member not found."); return; }
         System.out.println(m.detailsString());
-
-        // Ask to perform quick actions
-        while (true) {
-            System.out.print("Perform action on this member (add-child/add-parent/update/none): ");
-            String a = sc.nextLine().trim().toLowerCase();
-            if (a.equals("add-child")) { addMemberInteractiveChild(tree, sc, id); break; }
-            else if (a.equals("add-parent")) { addParentInteractive(tree, sc, id); break; }
-            else if (a.equals("update")) { updateMemberInteractive(tree, sc, id); break; }
-            else if (a.equals("none") || a.isEmpty()) break;
-            else System.out.println("Enter one of: add-child, add-parent, update, none.");
-        }
+        // Return to main menu
     }
 
     private static void addParentInteractive(MLMTree tree, Scanner sc, String childId) {
@@ -722,10 +725,12 @@ public class DSA {
         System.out.print("Parent Name: ");
         String name = sc.nextLine().trim();
         if (name.isEmpty()) { System.out.println("Name cannot be empty."); return; }
-        String id = null; // let addMember generate
-        Member parent = tree.addMember(id, name, null);
-        tree.reparentMember(childId, parent.getId());
-        System.out.println("Parent created and child reparented:\n" + parent.detailsString());
+        try {
+            Member parent = tree.addParentAbove(childId, name);
+            System.out.println("Parent created and child reparented:\n" + parent.detailsString());
+        } catch (IllegalArgumentException ex) {
+            System.out.println("Failed to add parent: " + ex.getMessage());
+        }
     }
 
     private static void addParentInteractive(MLMTree tree, Scanner sc) {

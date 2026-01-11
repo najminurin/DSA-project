@@ -564,9 +564,9 @@ public class DSA_BinaryTree {
         while (running) {
             System.out.println("\nChoose an option:");
             System.out.println("1) Add Member (up to 2 per parent)");
-            System.out.println("2) Show Member Details");
+            System.out.println("2) List Member IDs");
             System.out.println("3) Print Tree (Visual)");
-            System.out.println("4) List Members by Sales Volume (Merge Sort)");
+            System.out.println("4) Show Member Details (by ID)");
             System.out.println("5) Update Member");
             System.out.println("6) Save to file");
             System.out.println("7) Load from file");
@@ -578,24 +578,13 @@ public class DSA_BinaryTree {
                     addMemberInteractive(tree, sc);
                     break;
                 case "2":
-                    showMemberInteractive(tree, sc);
+                    listMemberIds(tree);
                     break;
                 case "3":
                     tree.printTreeVisual();
                     break;
                 case "4":
-                    List<Member> sorted = tree.getMembersSortedBySales();
-                    System.out.println("\n=== Members Sorted by Sales Volume (Merge Sort) ===");
-                    if (sorted.isEmpty()) {
-                        System.out.println("No members to display.");
-                    } else {
-                        System.out.printf("%-5s %-20s %-15s %-15s%n", "Rank", "Name", "Sales Volume", "Balance");
-                        System.out.println("---------------------------------------------------------------");
-                        int rank = 1;
-                        for (Member m : sorted) {
-                            System.out.printf("%-5d %-20s $%-14.2f $%-14.2f%n", rank++, m.getName(), m.getSalesVolume(), m.getBalance());
-                        }
-                    }
+                    showMemberInteractive(tree, sc);
                     break;
                 case "5":
                     System.out.print("Member ID to update: ");
@@ -658,6 +647,15 @@ public class DSA_BinaryTree {
         Member m = tree.find(id);
         if (m == null) { System.out.println("Member not found."); return; }
         System.out.println(m.detailsString());
+    }
+
+    private static void listMemberIds(MLMTree tree) {
+        List<Member> all = tree.getAllMembersBFS();
+        if (all.isEmpty()) { System.out.println("No members available."); return; }
+        System.out.println("\nMember IDs and Names:");
+        for (Member m : all) {
+            System.out.printf("%s - %s\n", m.getId(), m.getName());
+        }
     }
 
     private static void updateMemberInteractive(MLMTree tree, Scanner sc, String memberId) {

@@ -90,6 +90,24 @@ public class DSA_BinaryTree {
             return all;
         }
 
+        public void traversePreOrder(java.util.function.Consumer<Member> action) {
+            action.accept(this);  // Visit root first
+            if (leftChild != null) leftChild.traversePreOrder(action);
+            if (rightChild != null) rightChild.traversePreOrder(action);
+        }
+
+        public void traverseInOrder(java.util.function.Consumer<Member> action) {
+            if (leftChild != null) leftChild.traverseInOrder(action);
+            action.accept(this);  // Visit root after left
+            if (rightChild != null) rightChild.traverseInOrder(action);
+        }
+
+        public void traversePostOrder(java.util.function.Consumer<Member> action) {
+            if (leftChild != null) leftChild.traversePostOrder(action);
+            if (rightChild != null) rightChild.traversePostOrder(action);
+            action.accept(this);  // Visit root last
+        }
+
         public List<Member> getUplines() {
             List<Member> ups = new ArrayList<>();
             Member cur = this.sponsor;
@@ -347,6 +365,33 @@ public class DSA_BinaryTree {
             }
         }
 
+        public void traversePreOrder() {
+            if (root == null) {
+                System.out.println("<empty tree>");
+                return;
+            }
+            System.out.println("--- Pre-order Traversal ---");
+            root.traversePreOrder(member -> System.out.println(member));
+        }
+
+        public void traverseInOrder() {
+            if (root == null) {
+                System.out.println("<empty tree>");
+                return;
+            }
+            System.out.println("--- In-order Traversal ---");
+            root.traverseInOrder(member -> System.out.println(member));
+        }
+
+        public void traversePostOrder() {
+            if (root == null) {
+                System.out.println("<empty tree>");
+                return;
+            }
+            System.out.println("--- Post-order Traversal ---");
+            root.traversePostOrder(member -> System.out.println(member));
+        }
+
         public List<Member> getTopLevelMembers() {
             List<Member> roots = new ArrayList<>();
             if (root != null) roots.add(root);
@@ -570,7 +615,10 @@ public class DSA_BinaryTree {
             System.out.println("5) Update Member");
             System.out.println("6) Save to file");
             System.out.println("7) Load from file");
-            System.out.println("8) Exit");
+            System.out.println("8) Traverse Pre-order");
+            System.out.println("9) Traverse In-order");
+            System.out.println("10) Traverse Post-order");
+            System.out.println("11) Exit");
             System.out.print("> ");
             String choice = sc.nextLine().trim();
             switch (choice) {
@@ -601,6 +649,15 @@ public class DSA_BinaryTree {
                     catch (Exception ex) { System.out.println("Error: " + ex.getMessage()); }
                     break;
                 case "8":
+                    tree.traversePreOrder();
+                    break;
+                case "9":
+                    tree.traverseInOrder();
+                    break;
+                case "10":
+                    tree.traversePostOrder();
+                    break;
+                case "11":
                     running = false;
                     break;
                 default:

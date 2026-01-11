@@ -305,8 +305,62 @@ public class DSA_BinaryTree {
          */
         public List<Member> getMembersSortedBySales() {
             List<Member> list = new ArrayList<>(members.values());
-            list.sort((m1, m2) -> Double.compare(m2.getOwnSales(), m1.getOwnSales()));
-            return list;
+            if (list.size() < 2)
+                return list;
+            
+            return mergeSort(list);
+        }
+
+        /**
+         * Recursive Merge Sort logic
+         */
+        private List<Member> mergeSort(List<Member> list) {
+            // Base case: a list of 0 or 1 elements is already sorted
+            if (list.size() <= 1) return list;
+
+            int mid = list.size() / 2;
+            
+            // Split the list into two halves
+            List<Member> left = new ArrayList<>(list.subList(0, mid));
+            List<Member> right = new ArrayList<>(list.subList(mid, list.size()));
+
+            // Recursively sort both halves
+            left = mergeSort(left);
+            right = mergeSort(right);
+
+            // Merge the sorted halves
+            return merge(left, right);
+        }
+
+        /**
+         * Merges two sorted lists into one in descending order of ownSales
+         */
+        private List<Member> merge(List<Member> left, List<Member> right) {
+            List<Member> merged = new ArrayList<>();
+            int leftIdx = 0, rightIdx = 0;
+
+            // Compare elements from both lists and pick the larger one (for descending order)
+            while (leftIdx < left.size() && rightIdx < right.size()) {
+                if (left.get(leftIdx).getOwnSales() >= right.get(rightIdx).getOwnSales()) {
+                    merged.add(left.get(leftIdx));
+                    leftIdx++;
+                } else {
+                    merged.add(right.get(rightIdx));
+                    rightIdx++;
+                }
+            }
+
+            // Append remaining elements
+            while (leftIdx < left.size()) {
+                merged.add(left.get(leftIdx));
+                leftIdx++;
+            }
+            while (rightIdx < right.size()) {
+                merged.add(right.get(rightIdx));
+                rightIdx++;
+            }
+
+            return merged;
         }
 
         /**

@@ -301,31 +301,12 @@ public class DSA_BinaryTree {
         }
 
         /**
-         * Get all members sorted by descending sales volume using merge sort
+         * Get all members sorted by descending own sales using merge sort
          */
         public List<Member> getMembersSortedBySales() {
             List<Member> list = new ArrayList<>(members.values());
-            return mergeSortBySales(list);
-        }
-
-        private List<Member> mergeSortBySales(List<Member> list) {
-            if (list.size() <= 1) return list;
-            int mid = list.size()/2;
-            List<Member> left = mergeSortBySales(new ArrayList<>(list.subList(0, mid)));
-            List<Member> right = mergeSortBySales(new ArrayList<>(list.subList(mid, list.size())));
-            return mergeBySales(left, right);
-        }
-
-        private List<Member> mergeBySales(List<Member> a, List<Member> b) {
-            List<Member> out = new ArrayList<>();
-            int i = 0, j = 0;
-            while (i < a.size() && j < b.size()) {
-                if (a.get(i).getSalesVolume() >= b.get(j).getSalesVolume()) out.add(a.get(i++));
-                else out.add(b.get(j++));
-            }
-            while (i < a.size()) out.add(a.get(i++));
-            while (j < b.size()) out.add(b.get(j++));
-            return out;
+            list.sort((m1, m2) -> Double.compare(m2.getOwnSales(), m1.getOwnSales()));
+            return list;
         }
 
         /**
@@ -612,13 +593,14 @@ public class DSA_BinaryTree {
             System.out.println("2) List Member IDs");
             System.out.println("3) Print Tree (Visual)");
             System.out.println("4) Show Member Details (by ID)");
-            System.out.println("5) Update Member");
-            System.out.println("6) Save to file");
-            System.out.println("7) Load from file");
-            System.out.println("8) Traverse Pre-order");
-            System.out.println("9) Traverse In-order");
-            System.out.println("10) Traverse Post-order");
-            System.out.println("11) Exit");
+            System.out.println("5) Merge Sort by Own Sales");
+            System.out.println("6) Update Member");
+            System.out.println("7) Save to file");
+            System.out.println("8) Load from file");
+            System.out.println("9) Traverse Pre-order");
+            System.out.println("10) Traverse In-order");
+            System.out.println("11) Traverse Post-order");
+            System.out.println("12) Exit");
             System.out.print("> ");
             String choice = sc.nextLine().trim();
             switch (choice) {
@@ -635,29 +617,40 @@ public class DSA_BinaryTree {
                     showMemberInteractive(tree, sc);
                     break;
                 case "5":
+                    List<Member> sorted = tree.getMembersSortedBySales();
+                    System.out.println("\n=== Members Sorted by Own Sales (Descending) ===");
+                    if (sorted.isEmpty()) {
+                        System.out.println("No members to sort.");
+                    } else {
+                        for (Member m : sorted) {
+                            System.out.printf("%s - Own Sales: %.2f\n", m.getName(), m.getOwnSales());
+                        }
+                    }
+                    break;
+                case "6":
                     System.out.print("Member ID to update: ");
                     String updateId = sc.nextLine().trim();
                     if (tree.find(updateId) == null) { System.out.println("Member not found."); break; }
                     updateMemberInteractive(tree, sc, updateId);
                     break;
-                case "6":
+                case "7":
                     try { tree.saveToFile("mlm_data.tsv"); System.out.println("Saved."); isSaved = true; }
                     catch (Exception ex) { System.out.println("Error: " + ex.getMessage()); }
                     break;
-                case "7":
+                case "8":
                     try { tree.loadFromFile("mlm_data.tsv"); System.out.println("Loaded."); isSaved = true; }
                     catch (Exception ex) { System.out.println("Error: " + ex.getMessage()); }
                     break;
-                case "8":
+                case "9":
                     tree.traversePreOrder();
                     break;
-                case "9":
+                case "10":
                     tree.traverseInOrder();
                     break;
-                case "10":
+                case "11":
                     tree.traversePostOrder();
                     break;
-                case "11":
+                case "12":
                     running = false;
                     break;
                 default:

@@ -655,8 +655,17 @@ public class DSA {
                     break;
                 case "4":
                     List<Member> sorted = tree.getMembersSortedBySales();
-                    System.out.println("Members sorted by sales volume:");
-                    for (Member m : sorted) System.out.printf("%s - Sales: %.2f\n", m.getName(), m.getSalesVolume());
+                    System.out.println("\n=== Members Sorted by Sales Volume (Merge Sort) ===");
+                    if (sorted.isEmpty()) {
+                        System.out.println("No members to display.");
+                    } else {
+                        System.out.printf("%-5s %-20s %-15s %-15s%n", "Rank", "Name", "Sales Volume", "Balance");
+                        System.out.println("---------------------------------------------------------------");
+                        int rank = 1;
+                        for (Member m : sorted) {
+                            System.out.printf("%-5d %-20s $%-14.2f $%-14.2f%n", rank++, m.getName(), m.getSalesVolume(), m.getBalance());
+                        }
+                    }
                     break;
                 case "5":
                     System.out.print("Member ID to update: ");

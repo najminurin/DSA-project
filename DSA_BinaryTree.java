@@ -571,6 +571,7 @@ public class DSA_BinaryTree {
             System.out.println("6) Save to file");
             System.out.println("7) Load from file");
             System.out.println("8) Exit");
+            System.out.println("9) List All Members (full details)");
             System.out.print("> ");
             String choice = sc.nextLine().trim();
             switch (choice) {
@@ -610,6 +611,15 @@ public class DSA_BinaryTree {
                 case "7":
                     try { tree.loadFromFile("mlm_data.tsv"); System.out.println("Loaded."); isSaved = true; }
                     catch (Exception ex) { System.out.println("Error: " + ex.getMessage()); }
+                    break;
+                case "9":
+                    List<Member> all = tree.getAllMembersBFS();
+                    if (all.isEmpty()) { System.out.println("No members available."); break; }
+                    System.out.println("\n--- All Members (full details) ---");
+                    for (Member m : all) {
+                        System.out.println(m.detailsString());
+                        System.out.println("----------------------------");
+                    }
                     break;
                 case "8":
                     running = false;
